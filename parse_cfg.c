@@ -324,3 +324,58 @@ void dump_configuration(const struct configuration *cfg) {
 }
 #endif
 
+bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
+    if ((mcfg->host == NULL) || (strlen(mcfg->host) == 0)) {
+        log_error("Missing MQTT host");
+        return false;
+    }
+
+    if ((mcfg->topic == NULL) || (strlen(mcfg->topic) == 0)) {
+        log_error("Missing MQTT topic");
+        return false;
+    }
+
+    if ((mcfg->user == NULL) && (mcfg->password == NULL) && (mcfg->ssl_auth_public == NULL) && (mcfg->ssl_auth_private == NULL)) {
+        log_error("No authentication method (user/password or SSL client certificate) found");
+        return false;
+    }
+
+    if ((mcfg->user != NULL) && (mcfg->password == NULL)) {
+        log_error("No password found for user/password authentication for user %s", mcfg->user);
+        return false;
+    }
+
+    if ((mcfg->user == NULL) && (mcfg->password != NULL)) {
+        log_error("No user found for user/password authentication");
+        return false;
+    }
+
+    return true;
+}
+
+bool validate_configuration(const struct configuration *cfg) {
+    struct mqtt_configuration *mcfg;
+
+    if (cfg->fan_in == NULL) {
+        log_error("No input broker found");
+        return false;
+    }
+
+    DL_FOREACH(cfg->fan_in, mcfg) {
+        if (!validate_mqtt_configuration(mcfg)) {
+            return false;
+        }
+    }
+
+    if (cfg->fan_out == NULL) {
+        log_error("No output broker found");
+        return false;
+    }
+
+    DL_FOREACH(cfg->fan_out, mcfg) {
+        if (!validate_mqtt_configuration(mcfg)) {
+            return false;
+        }
+    }
+}
+

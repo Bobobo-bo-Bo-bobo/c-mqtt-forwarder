@@ -10,6 +10,7 @@
 const char *short_options = "c:qvh";
 static struct option long_options[] = {
     { "config", required_argument, 0, 'c' },
+    { "help", no_argument, 0, 'h' },
     { "quiet", no_argument, 0, 'h' },
     { "verbose", no_argument, 0, 'v' },
     { NULL, 0, 0, 0 },
@@ -57,14 +58,29 @@ int main(int argc, char **argv) {
         assert(config_file != NULL);
     }
 
+    if (loglvl == BE_VERBOSE) {
+        log_info("Parsing configuration from %s", config_file);
+    }
+
     cfg = parse_config_file(config_file);
     if (cfg == NULL) {
         return 1;
     }
 
+    cfg->loglevel = loglvl;
+
 #ifdef DEBUG
     dump_configuration(cfg);
 #endif
+
+    if (cfg->loglevel == BE_VERBOSE) {
+        log_info("Validating configuration");
+    }
+
+    if (!validate_configuration(cfg)) {
+        destroy_configuration(cfg);
+        return 1;
+    }
 
     destroy_configuration(cfg);
 }

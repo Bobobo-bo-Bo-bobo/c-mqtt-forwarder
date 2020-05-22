@@ -1,0 +1,8 @@
+tmp/
+build/
+*.swp
+c-mqtt-forwarder.h
+*.cbp
+*.[oa]
+*~
+build/

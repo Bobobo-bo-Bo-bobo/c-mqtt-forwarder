@@ -1,0 +1,63 @@
+#ifndef __C_MQTT_FORWARDER_CONFIG_H__
+#define __C_MQTT_FORWARDER_CONFIG_H__
+
+#define C_MQTT_FORWARDER_NAME "c-mqtt-forwarder"
+#define C_MQTT_FORWARDER_VERSION "@C_MQTT_FORWARDER_VERSION@"
+#define DEFAULT_CONFIGURATION_FILE "/etc/mqtt-forwarder/config.json"
+
+#define DEFAULT_MQTT_PORT 1883
+#define DEFAULT_MQTT_TIMEOUT 60
+
+#define DEBUG_BUILD @DEBUG_BUILD@
+#if DEBUG_BUILD == 1
+#define DEBUG
+#else
+#undef DEBUG
+#endif /* DEBUG_BUILD == 1 */
+
+#cmakedefine HAVE_MEMSET
+#cmakedefine HAVE_CALLOC
+#cmakedefine HAVE_STDBOOL_H
+#cmakedefine HAVE_SIGACTION
+
+#define BE_VERBOSE 0x01
+#define BE_QUIET 0x02
+
+#ifdef HAVE_STDBOOL_H
+#include <stdbool.h>
+#else /* HAVE_STDBOOL_H */
+typedef char bool;
+#define true 1
+#define false 0
+#endif /* HAVE_STDBOOL_H */
+
+#include <mosquitto.h>
+#include <uthash.h>
+#include <pthread.h>
+#include <time.h>
+#include "log.h"
+
+struct mqtt_configuration {
+    char *host;
+    int port;
+    char *user;
+    char *password;
+    char *ssl_auth_public;
+    char *ssl_auth_private;
+    char *ca_file;
+    bool insecure_ssl;
+    short qos;
+    char *topic;
+    int timeout;
+    // required for utlist
+    struct mqtt_configuration *prev;
+    struct mqtt_configuration *next;
+};
+
+struct configuration {
+    short loglevel;
+    struct mqtt_configuration *fan_in;
+    struct mqtt_configuration *fan_out;
+};
+
+#endif

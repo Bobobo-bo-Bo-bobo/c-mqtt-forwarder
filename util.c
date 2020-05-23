@@ -62,24 +62,18 @@ long str2long(const char *str) {
 
     result = strtol(str, &remain, 10);
     if ((errno == ERANGE && (result == LONG_MAX || result == LONG_MIN)) || (errno != 0 && result == 0)) {
-        log_error("Can't convert %s to long", str);
+        LOG_ERROR("Can't convert %s to long", str);
         return LONG_MIN;
     }
     if (str == remain) {
-        log_error("Can't convert %s to long", str);
+        LOG_ERROR("Can't convert %s to long", str);
         return LONG_MIN;
     }
     if (*remain != 0) {
-        log_error("Can't convert %s to long", str);
+        LOG_ERROR("Can't convert %s to long", str);
         return LONG_MIN;
     }
     return result;
-}
-
-void destroy_configuration(struct configuration *cfg) {
-    if (!cfg) {
-        return;
-    }
 }
 
 int float_len6(const double d) {

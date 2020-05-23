@@ -36,7 +36,6 @@ static struct {
   int quiet;
 } L;
 
-
 static const char *level_names[] = {
   "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
@@ -47,13 +46,11 @@ static const char *level_colors[] = {
 };
 #endif
 
-
 static void lock(void)   {
   if (L.lock) {
     L.lock(L.udata, 1);
   }
 }
-
 
 static void unlock(void) {
   if (L.lock) {
@@ -61,21 +58,17 @@ static void unlock(void) {
   }
 }
 
-
 void log_set_udata(void *udata) {
   L.udata = udata;
 }
-
 
 void log_set_lock(log_LockFn fn) {
   L.lock = fn;
 }
 
-
 void log_set_fp(FILE *fp) {
   L.fp = fp;
 }
-
 
 void log_set_level(int level) {
   L.level = level;
@@ -102,15 +95,29 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
   /* Log to stderr */
   if (!L.quiet) {
     va_list args;
-    char buf[16];
-    buf[strftime(buf, sizeof(buf), "%H:%M:%S", lt)] = '\0';
+//    char buf[16];
+    char buf[25];
+//    buf[strftime(buf, sizeof(buf), "%H:%M:%S", lt)] = '\0';
+    buf[strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", lt)] = '\0';
+
 #ifdef LOG_USE_COLOR
-    fprintf(
-      stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
-      buf, level_colors[level], level_names[level], file, line);
+    if (file) {
+        fprintf(
+          stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
+          buf, level_colors[level], level_names[level], file, line);
+    } else {
+        fprintf(
+          stderr, "%s %s%-5s\x1b[0m",
+          buf, level_colors[level], level_names[level]);
+    }
 #else
-    fprintf(stderr, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+    if (file) {
+        fprintf(stderr, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+    } else {
+        fprintf(stderr, "%s %-5s", buf, level_names[level]);
+    }
 #endif
+
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
@@ -121,9 +128,15 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
   /* Log to file */
   if (L.fp) {
     va_list args;
-    char buf[32];
-    buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", lt)] = '\0';
-    fprintf(L.fp, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+//    char buf[32];
+    char buf[25];
+//    buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", lt)] = '\0';
+    buf[strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", lt)] = '\0';
+    if (file) {
+        fprintf(L.fp, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+    } else {
+        fprintf(L.fp, "%s %-5s", buf, level_names[level]);
+    }
     va_start(args, fmt);
     vfprintf(L.fp, fmt, args);
     va_end(args);

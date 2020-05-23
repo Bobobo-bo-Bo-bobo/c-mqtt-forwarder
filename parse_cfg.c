@@ -24,6 +24,7 @@ void set_mqtt_configuration_defaults(struct mqtt_configuration *mqttcfg) {
     mqttcfg->port = DEFAULT_MQTT_PORT;
     mqttcfg->qos = 0;
     mqttcfg->timeout = DEFAULT_MQTT_TIMEOUT;
+    mqttcfg->keepalive = DEFAULT_MQTT_KEEPALIVE;
     mqttcfg->insecure_ssl = false;
 }
 
@@ -93,7 +94,7 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     c = cJSON_GetObjectItemCaseSensitive(mcfg, "port");
     if (cJSON_IsNumber(c)) {
         if ((c->valueint <= 0) || (c->valueint > 65535)) {
-            log_error("Invalid port number %d", c->valueint);
+            LOG_ERROR("Invalid port number %d", c->valueint);
             return NULL;
         }
         mqttcfg->port = c->valueint;
@@ -149,7 +150,7 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     c = cJSON_GetObjectItemCaseSensitive(mcfg, "qos");
     if (cJSON_IsNumber(c)) {
         if ((c->valueint < 0) && (c->valueint > 2)) {
-            log_error("Invalid QoS value %d\n", c->valueint);
+            LOG_ERROR("Invalid QoS value %d\n", c->valueint);
             return NULL;
         }
         mqttcfg->qos = c->valueint;
@@ -158,16 +159,26 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     c = cJSON_GetObjectItemCaseSensitive(mcfg, "timeout");
     if (cJSON_IsNumber(c)) {
         if (c->valueint <= 0) {
-            log_error("Invalid timeout %d", c->valueint);
+            LOG_ERROR("Invalid timeout %d", c->valueint);
             return NULL;
         }
         mqttcfg->timeout = c->valueint;
     }
 
+    c = cJSON_GetObjectItemCaseSensitive(mcfg, "keepalive");
+    if (cJSON_IsNumber(c)) {
+        if (c->valueint <= 0) {
+            LOG_ERROR("Invalid keepalive %d", c->valueint);
+            return NULL;
+        }
+        mqttcfg->keepalive = c->valueint;
+    }
     return mqttcfg;
 }
 
 void destroy_mqtt_configuration(struct mqtt_configuration *mqttcfg) {
+    struct message_queue *msg;
+
     if (mqttcfg == NULL) {
         return;
     }
@@ -194,6 +205,14 @@ void destroy_mqtt_configuration(struct mqtt_configuration *mqttcfg) {
         free(mqttcfg->topic);
     }
 
+    DL_FOREACH(mqttcfg->messages, msg) {
+        if (msg != NULL) {
+            if (msg->data != NULL) {
+                free(msg->data);
+            }
+            free(msg);
+        }
+    }
     free(mqttcfg);
 }
 
@@ -254,12 +273,12 @@ struct configuration *parse_config_file(const char *cfg_file) {
     if (parser == NULL) {
         parse_err = cJSON_GetErrorPtr();
         if (parse_err != NULL) {
-            log_error("Can't parse JSON configuration: %s", parse_err);
+            LOG_ERROR("Can't parse JSON configuration: %s", parse_err);
             free(cfg);
             destroy_configuration(cfg);
             goto done;
         }
-        log_error("Can't parse JSON configuration");
+        LOG_ERROR("Can't parse JSON configuration");
         destroy_configuration(cfg);
         cfg = NULL;
         goto done;
@@ -273,7 +292,10 @@ struct configuration *parse_config_file(const char *cfg_file) {
             cfg = NULL;
             goto done;
         }
+        mqttcfg->direction = DIRECTION_IN;
+        mqttcfg->config = cfg;
         DL_APPEND(cfg->fan_in, mqttcfg);
+        cfg->count_in ++;
     }
 
     outlist = cJSON_GetObjectItemCaseSensitive(parser, "out");
@@ -284,7 +306,10 @@ struct configuration *parse_config_file(const char *cfg_file) {
             cfg = NULL;
             goto done;
         }
+        mqttcfg->direction = DIRECTION_OUT;
+        mqttcfg->config = cfg;
         DL_APPEND(cfg->fan_out, mqttcfg);
+        cfg->count_out ++;
     }
 
 done:
@@ -305,6 +330,9 @@ void dump_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     printf(">>> qos: %d\n", mcfg->qos);
     printf(">>> topic: %s\n", mcfg->topic);
     printf(">>> timeout: %d\n", mcfg->timeout);
+    printf(">>> keepalive: %d\n", mcfg->keepalive);
+    printf(">>> direction: %d\n", mcfg->direction);
+    printf(">>> messages: 0x%0x\n", mcfg->messages);
     printf("---\n");
 }
 
@@ -312,6 +340,8 @@ void dump_configuration(const struct configuration *cfg) {
     struct mqtt_configuration *mcfg;
 
     printf("cfg->loglevel: %d\n", cfg->loglevel);
+    printf("cfg->count_in: %d\n", cfg->count_in);
+    printf("cfg->count_out: %d\n", cfg->count_out);
     printf("cfg->fan_in: 0x%0x\n", cfg->fan_in);
     DL_FOREACH(cfg->fan_in, mcfg) {
         dump_mqtt_configuration(mcfg);
@@ -326,27 +356,27 @@ void dump_configuration(const struct configuration *cfg) {
 
 bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     if ((mcfg->host == NULL) || (strlen(mcfg->host) == 0)) {
-        log_error("Missing MQTT host");
+        LOG_ERROR("Missing MQTT host");
         return false;
     }
 
     if ((mcfg->topic == NULL) || (strlen(mcfg->topic) == 0)) {
-        log_error("Missing MQTT topic");
+        LOG_ERROR("Missing MQTT topic");
         return false;
     }
 
     if ((mcfg->user == NULL) && (mcfg->password == NULL) && (mcfg->ssl_auth_public == NULL) && (mcfg->ssl_auth_private == NULL)) {
-        log_error("No authentication method (user/password or SSL client certificate) found");
+        LOG_ERROR("No authentication method (user/password or SSL client certificate) found");
         return false;
     }
 
     if ((mcfg->user != NULL) && (mcfg->password == NULL)) {
-        log_error("No password found for user/password authentication for user %s", mcfg->user);
+        LOG_ERROR("No password found for user/password authentication for user %s", mcfg->user);
         return false;
     }
 
     if ((mcfg->user == NULL) && (mcfg->password != NULL)) {
-        log_error("No user found for user/password authentication");
+        LOG_ERROR("No user found for user/password authentication");
         return false;
     }
 
@@ -357,7 +387,17 @@ bool validate_configuration(const struct configuration *cfg) {
     struct mqtt_configuration *mcfg;
 
     if (cfg->fan_in == NULL) {
-        log_error("No input broker found");
+        LOG_ERROR("No input broker found");
+        return false;
+    }
+
+    if (cfg->count_in == 0) {
+        LOG_ERROR("No input brokers");
+        return false;
+    }
+
+    if (cfg->count_out == 0) {
+        LOG_ERROR("No output brokers");
         return false;
     }
 
@@ -368,7 +408,7 @@ bool validate_configuration(const struct configuration *cfg) {
     }
 
     if (cfg->fan_out == NULL) {
-        log_error("No output broker found");
+        LOG_ERROR("No output broker found");
         return false;
     }
 
@@ -377,5 +417,7 @@ bool validate_configuration(const struct configuration *cfg) {
             return false;
         }
     }
+
+    return true;
 }
 

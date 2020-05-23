@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(c-mqtt-forwarder)
-set(C_MQTT_FORWARDER_VERSION "1.0.0-20200522")
+set(C_MQTT_FORWARDER_VERSION "1.0.0-20200523")
 
-set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Debug)
 set(DEBUG_BUILD 0)
 string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if (BUILD_TYPE STREQUAL DEBUG)
@@ -45,6 +45,8 @@ find_package(Threads REQUIRED)
 
 add_library(usage usage.c)
 add_library(parse_cfg parse_cfg.c)
+add_library(mqtt mqtt.c)
+add_library(process_msgs process_msgs.c)
 add_library(util util.c)
 # add_library(signal_handler signal_handler.c)
 
@@ -56,11 +58,13 @@ configure_file("${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h.in" "${PROJECT_SOURCE_D
 
 add_executable(c-mqtt-forwarder main.c)
 
-target_link_libraries(c-mqtt-forwarder parse_cfg)
 target_link_libraries(c-mqtt-forwarder log)
+target_link_libraries(c-mqtt-forwarder mqtt)
 # target_link_libraries(c-mqtt-forwarder signal_handler)
 target_link_libraries(c-mqtt-forwarder usage)
 target_link_libraries(c-mqtt-forwarder util)
+target_link_libraries(c-mqtt-forwarder parse_cfg)
+target_link_libraries(c-mqtt-forwarder process_msgs)
 target_link_libraries(c-mqtt-forwarder "-lmosquitto")
 target_link_libraries(c-mqtt-forwarder "-lm")
 target_link_libraries(c-mqtt-forwarder ${LIBUUID_LIBRARIES})

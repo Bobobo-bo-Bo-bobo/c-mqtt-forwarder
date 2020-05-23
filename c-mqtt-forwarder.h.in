@@ -7,6 +7,7 @@
 
 #define DEFAULT_MQTT_PORT 1883
 #define DEFAULT_MQTT_TIMEOUT 60
+#define DEFAULT_MQTT_KEEPALIVE 15
 
 #define DEBUG_BUILD @DEBUG_BUILD@
 #if DEBUG_BUILD == 1
@@ -22,6 +23,11 @@
 
 #define BE_VERBOSE 0x01
 #define BE_QUIET 0x02
+#define DIRECTION_IN 0x04
+#define DIRECTION_OUT 0x08
+
+#define MQTT_SSL_VERIFY_NONE 0
+#define MQTT_SSL_VERIFY_PEER 1
 
 #ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
@@ -37,6 +43,31 @@ typedef char bool;
 #include <time.h>
 #include "log.h"
 
+#ifdef DEBUG
+
+#define LOG_DEBUG(...) log_log(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__);
+#define LOG_INFO(...) log_log(LOG_INFO, __FILE__, __LINE__, __VA_ARGS__);
+#define LOG_WARN(...) log_log(LOG_WARN, __FILE__, __LINE__, __VA_ARGS__);
+#define LOG_ERROR(...) log_log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__);
+#define LOG_FATAL(...) log_log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__);
+
+#else
+
+#define LOG_DEBUG(...) log_log(LOG_DEBUG, NULL, -1, __VA_ARGS__);
+#define LOG_INFO(...) log_log(LOG_INFO, NULL, -1, __VA_ARGS__);
+#define LOG_WARN(...) log_log(LOG_WARN, NULL, -1, __VA_ARGS__);
+#define LOG_ERROR(...) log_log(LOG_ERROR, NULL, -1, __VA_ARGS__);
+#define LOG_FATAL(...) log_log(LOG_FATAL, NULL, -1, __VA_ARGS__);
+
+#endif /* DEBUG */
+
+struct message_queue {
+    char *data;
+    // required for utlist
+    struct message_queue *prev;
+    struct message_queue *next;
+};
+
 struct mqtt_configuration {
     char *host;
     int port;
@@ -49,6 +80,15 @@ struct mqtt_configuration {
     short qos;
     char *topic;
     int timeout;
+    int keepalive;
+    short direction;
+
+    // provide a pointer to the upper configuration
+    struct configuration *config;
+
+    // pending messages
+    struct message_queue *messages;
+
     // required for utlist
     struct mqtt_configuration *prev;
     struct mqtt_configuration *next;
@@ -56,8 +96,12 @@ struct mqtt_configuration {
 
 struct configuration {
     short loglevel;
+    unsigned int count_in;
+    unsigned int count_out;
     struct mqtt_configuration *fan_in;
     struct mqtt_configuration *fan_out;
 };
+
+extern pthread_mutex_t log_mutex;
 
 #endif

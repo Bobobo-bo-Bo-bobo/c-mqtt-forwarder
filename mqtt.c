@@ -35,13 +35,27 @@ void mqtt_message_handler(struct mosquitto *mqtt, void *ptr, const struct mosqui
             LOG_ERROR("Allocation of %d bytes of memory for message copy failed, discarding message", msg->payloadlen);
             pthread_mutex_unlock(&log_mutex);
             free(mmsg);
-
             // XXX: Should we all other outgoing brokers? It's unlikely the allocation will succeed.
             continue;
         }
 
         mmsg->datalen = msg->payloadlen;
         memcpy(mmsg->data, msg->payload, msg->payloadlen);
+
+        mmsg->topic = calloc(1, strlen(fan->topic) + strlen(msg->topic) + 2);
+        if (mmsg->topic == NULL) {
+            pthread_mutex_lock(&log_mutex);
+            LOG_ERROR("Allocation of %d bytes of memory for new topic failed, discarding message", strlen(fan->topic) + strlen(msg->topic) + 2);
+            pthread_mutex_unlock(&log_mutex);
+            free(mmsg->data);
+            free(mmsg);
+            // XXX: Should we all other outgoing brokers? It's unlikely the allocation will succeed.
+            continue;
+        }
+
+        memcpy(mmsg->topic, fan->topic, strlen(fan->topic));
+        mmsg->topic[strlen(fan->topic)] = '/';
+        memcpy(mmsg->topic + strlen(fan->topic) + 1, msg->topic, strlen(msg->topic));
 
         pthread_mutex_lock(&msg_mutex);
         DL_APPEND(fan->message_queue, mmsg);

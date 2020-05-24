@@ -22,7 +22,6 @@ static struct option long_options[] = {
     { NULL, 0, 0, 0 },
 };
 
-pthread_mutex_t log_mutex;
 
 int main(int argc, char **argv) {
     struct configuration *cfg;

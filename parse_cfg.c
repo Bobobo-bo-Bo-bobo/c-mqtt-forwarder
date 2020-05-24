@@ -41,19 +41,19 @@ char *read_configuration_file(const char *cfg_file) {
 
     rc = stat(cfg_file, &sbuf);
     if (rc == -1) {
-        log_fatal("Can't get file status of %s: %s", cfg_file, strerror(errno));
+        LOG_FATAL("Can't get file status of %s: %s", cfg_file, strerror(errno));
         return NULL;
     }
 
     buffer = calloc(1, sbuf.st_size + 1);
     if (buffer == NULL) {
-        log_fatal("Unable to allocate %d bytes from memory", sbuf.st_size + 1);
+        LOG_FATAL("Unable to allocate %d bytes from memory", sbuf.st_size + 1);
         return NULL;
     }
 
     fd = open(cfg_file, O_RDONLY);
     if (fd == -1) {
-        log_fatal("Can't open configuration file %s for reading: %s", cfg_file, strerror(errno));
+        LOG_FATAL("Can't open configuration file %s for reading: %s", cfg_file, strerror(errno));
         return NULL;
     }
 
@@ -61,13 +61,13 @@ char *read_configuration_file(const char *cfg_file) {
     // XXX: we also assume file size is < SSIZE_MAX (2,147,479,552 bytes on Linux)
     rcnt = read(fd, buffer, sbuf.st_size);
     if (rcnt == -1) {
-        log_fatal("Reading from configuration file %s failed: %s", cfg_file, strerror(errno));
+        LOG_FATAL("Reading from configuration file %s failed: %s", cfg_file, strerror(errno));
         return NULL;
     }
 
     rc = close(fd);
     if (rc == -1) {
-        log_fatal("An error occured while closing %s: %s", cfg_file, strerror(errno));
+        LOG_FATAL("An error occured while closing %s: %s", cfg_file, strerror(errno));
         return NULL;
     }
 
@@ -80,7 +80,7 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
 
     mqttcfg = calloc(1, sizeof(struct mqtt_configuration));
     if (mqttcfg == NULL) {
-        log_fatal("Unable to allocate %d bytes from memory", sizeof(struct configuration));
+        LOG_FATAL("Unable to allocate %d bytes from memory", sizeof(struct configuration));
         return NULL;
     }
     set_mqtt_configuration_defaults(mqttcfg);
@@ -177,7 +177,7 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
 }
 
 void destroy_mqtt_configuration(struct mqtt_configuration *mqttcfg) {
-    struct message_queue *msg;
+    struct message *msg;
 
     if (mqttcfg == NULL) {
         return;
@@ -205,7 +205,7 @@ void destroy_mqtt_configuration(struct mqtt_configuration *mqttcfg) {
         free(mqttcfg->topic);
     }
 
-    DL_FOREACH(mqttcfg->messages, msg) {
+    DL_FOREACH(mqttcfg->message_queue, msg) {
         if (msg != NULL) {
             if (msg->data != NULL) {
                 free(msg->data);
@@ -258,7 +258,7 @@ struct configuration *parse_config_file(const char *cfg_file) {
 
     cfg = calloc(1, sizeof(struct configuration));
     if (cfg == NULL) {
-        log_fatal("Unable to allocate %d bytes from memory", sizeof(struct configuration));
+        LOG_FATAL("Unable to allocate %d bytes from memory", sizeof(struct configuration));
         return NULL;
     }
 
@@ -332,7 +332,7 @@ void dump_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     printf(">>> timeout: %d\n", mcfg->timeout);
     printf(">>> keepalive: %d\n", mcfg->keepalive);
     printf(">>> direction: %d\n", mcfg->direction);
-    printf(">>> messages: 0x%0x\n", mcfg->messages);
+    printf(">>> message_queue: 0x%0x\n", mcfg->message_queue);
     printf("---\n");
 }
 
@@ -365,6 +365,24 @@ bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
         return false;
     }
 
+    if (mcfg->direction == DIRECTION_OUT) {
+        // outgoing topic should not end in a wildcard (0x23 - '#' / 0x2b - '+')
+        if ((index(mcfg->topic, 0x23) != NULL) || (index(mcfg->topic, 0x2b) != NULL)) {
+            LOG_ERROR("Topic for outgoing broker should not contain a wildcard");
+            return false
+        }
+    }
+
+    if (mcfg->topic[0] == '/') {
+        LOG_ERROR("Topic can't start with a slash");
+        return false;
+    }
+
+    if (mcfg->topic[strlen(mcfg->topic)] == '/') {
+        LOG_ERROR("Topic can't end with a slash");
+        return false;
+    }
+
     if ((mcfg->user == NULL) && (mcfg->password == NULL) && (mcfg->ssl_auth_public == NULL) && (mcfg->ssl_auth_private == NULL)) {
         LOG_ERROR("No authentication method (user/password or SSL client certificate) found");
         return false;
@@ -379,6 +397,7 @@ bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
         LOG_ERROR("No user found for user/password authentication");
         return false;
     }
+
 
     return true;
 }

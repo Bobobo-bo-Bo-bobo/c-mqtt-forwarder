@@ -61,11 +61,13 @@ typedef char bool;
 
 #endif /* DEBUG */
 
-struct message_queue {
-    char *data;
+struct message {
+    char *topic;
+    int datalen;
+    void *data;
     // required for utlist
-    struct message_queue *prev;
-    struct message_queue *next;
+    struct message *prev;
+    struct message *next;
 };
 
 struct mqtt_configuration {
@@ -83,11 +85,13 @@ struct mqtt_configuration {
     int keepalive;
     short direction;
 
+    struct mosquitto *handle;
+
     // provide a pointer to the upper configuration
     struct configuration *config;
 
     // pending messages
-    struct message_queue *messages;
+    struct message *message_queue;
 
     // required for utlist
     struct mqtt_configuration *prev;
@@ -102,6 +106,11 @@ struct configuration {
     struct mqtt_configuration *fan_out;
 };
 
-extern pthread_mutex_t log_mutex;
+// mutex to avoid clutter when logging
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+// mutex for processing message queue
+static pthread_mutex_t msg_mutex = PTHREAD_MUTEX_INITIALIZER;
+// mutex for processing fan_in/fan_out list
+static pthread_mutex_t fan_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #endif

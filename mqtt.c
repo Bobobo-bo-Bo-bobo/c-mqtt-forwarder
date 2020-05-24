@@ -8,15 +8,48 @@
 #include <assert.h>
 #include <errno.h>
 #include <mosquitto.h>
+#include <utlist.h>
+
 
 void mqtt_message_handler(struct mosquitto *mqtt, void *ptr, const struct mosquitto_message *msg) {
     struct mqtt_configuration *mcfg = (struct mqtt_configuration *) ptr;
+    struct mqtt_configuration *fan;
+    struct message *mmsg;
 
     if (mcfg->config->loglevel == BE_VERBOSE) {
         pthread_mutex_lock(&log_mutex);
         LOG_INFO("Received %d bytes of message on %s from %s:%d", msg->payloadlen, msg->topic, mcfg->host, mcfg->port);
         pthread_mutex_unlock(&log_mutex);
     }
+
+    // loop over outgoing brokers
+    pthread_mutex_lock(&fan_mutex);
+    DL_FOREACH(mcfg->config->fan_out, fan) {
+        // make a copy of the message and enqueue message for all outgoing
+        mmsg = calloc(1, sizeof(struct message));
+        assert(mmsg != NULL);
+
+        mmsg->data = calloc(1, msg->payloadlen);
+        if (mmsg->data == NULL) {
+            pthread_mutex_lock(&log_mutex);
+            LOG_ERROR("Allocation of %d bytes of memory for message copy failed, discarding message", msg->payloadlen);
+            pthread_mutex_unlock(&log_mutex);
+            free(mmsg);
+
+            // XXX: Should we all other outgoing brokers? It's unlikely the allocation will succeed.
+            continue;
+        }
+
+        mmsg->datalen = msg->payloadlen;
+        memcpy(mmsg->data, msg->payload, msg->payloadlen);
+
+        pthread_mutex_lock(&msg_mutex);
+        DL_APPEND(fan->message_queue, mmsg);
+        pthread_mutex_unlock(&msg_mutex);
+
+    };
+    pthread_mutex_unlock(&fan_mutex);
+
 };
 
 void mqtt_connect_handler(struct mosquitto *mqtt, void *ptr, int result) {
@@ -31,7 +64,7 @@ void mqtt_connect_handler(struct mosquitto *mqtt, void *ptr, int result) {
 
     if (result != MOSQ_ERR_SUCCESS) {
         pthread_mutex_lock(&log_mutex);
-        LOG_ERROR("%s", mosquitto_strerror(rc));
+        LOG_ERROR("%s", mosquitto_strerror(result));
         pthread_mutex_unlock(&log_mutex);
         return;
     }
@@ -85,6 +118,9 @@ void *mqtt_connect(void *ptr) {
 
     mqtt = mosquitto_new(mqtt_client_id, true, ptr);
     assert(mqtt != NULL);
+
+    // each MQTT thread uses it's own handle, no mutex required
+    mcfg->handle = mqtt;
 
     mosquitto_threaded_set(mqtt, true);
 
@@ -157,7 +193,7 @@ void *mqtt_connect(void *ptr) {
     }
 
     if (mcfg->direction == DIRECTION_IN) {
-        rc = mosquitto_loop_forever(mqtt, mcfg->timeout, 1);
+        rc = mosquitto_loop_forever(mqtt, 1000 * mcfg->timeout, 1);
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
             LOG_ERROR("MQTT loop_forever failed for %s:%d: %s\n", mcfg->host, mcfg->port, mosquitto_strerror(rc));
@@ -167,10 +203,10 @@ void *mqtt_connect(void *ptr) {
         }
     } else {
         rc = MOSQ_ERR_SUCCESS;
-        while (rc != MOSQ_ERR_SUCCESS) {
+        while (rc == MOSQ_ERR_SUCCESS) {
             process_message_queue(mcfg);
 
-            rc = mosquitto_loop(mqtt, mcfg->timeout, 1);
+            rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
                 LOG_ERROR("MQTT loop failed for %s:%d: %s\n", mcfg->host, mcfg->port, mosquitto_strerror(rc));

@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
             LOG_INFO("Destroying configuration");
         }
         destroy_configuration(cfg);
+        free(cfg);
         return 1;
     }
 
@@ -148,5 +149,6 @@ done:
     }
 
     destroy_configuration(cfg);
+    free(cfg);
 }
 

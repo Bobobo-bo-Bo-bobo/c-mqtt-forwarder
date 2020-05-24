@@ -237,8 +237,6 @@ void destroy_configuration(struct configuration *cfg) {
             destroy_mqtt_configuration(element);
         }
     }
-
-    free(cfg);
 }
 
 struct configuration *parse_config_file(const char *cfg_file) {
@@ -265,6 +263,7 @@ struct configuration *parse_config_file(const char *cfg_file) {
     buffer = read_configuration_file(cfg_file);
     if (buffer == NULL) {
         destroy_configuration(cfg);
+        free(cfg);
         cfg = NULL;
         goto done;
     }
@@ -274,12 +273,14 @@ struct configuration *parse_config_file(const char *cfg_file) {
         parse_err = cJSON_GetErrorPtr();
         if (parse_err != NULL) {
             LOG_ERROR("Can't parse JSON configuration: %s", parse_err);
-            free(cfg);
             destroy_configuration(cfg);
+            free(cfg);
+            cfg = NULL;
             goto done;
         }
         LOG_ERROR("Can't parse JSON configuration");
         destroy_configuration(cfg);
+        free(cfg);
         cfg = NULL;
         goto done;
     }
@@ -289,6 +290,7 @@ struct configuration *parse_config_file(const char *cfg_file) {
         mqttcfg = parse_mqtt_configuration(incfg);
         if (mqttcfg == NULL) {
             destroy_configuration(cfg);
+            free(cfg);
             cfg = NULL;
             goto done;
         }
@@ -303,6 +305,7 @@ struct configuration *parse_config_file(const char *cfg_file) {
         mqttcfg = parse_mqtt_configuration(outcfg);
         if (mqttcfg == NULL) {
             destroy_configuration(cfg);
+            free(cfg);
             cfg = NULL;
             goto done;
         }
@@ -369,7 +372,7 @@ bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
         // outgoing topic should not end in a wildcard (0x23 - '#' / 0x2b - '+')
         if ((index(mcfg->topic, 0x23) != NULL) || (index(mcfg->topic, 0x2b) != NULL)) {
             LOG_ERROR("Topic for outgoing broker should not contain a wildcard");
-            return false
+            return false;
         }
     }
 

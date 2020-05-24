@@ -27,6 +27,10 @@ void destroy_msg(struct message *m) {
         free(m->data);
         m->datalen = 0;
     }
+
+    if (m->topic != NULL) {
+        free(m->topic);
+    }
 };
 
 void process_message_queue(struct mqtt_configuration *mcfg) {
@@ -38,35 +42,35 @@ void process_message_queue(struct mqtt_configuration *mcfg) {
     DL_FOREACH_SAFE(mcfg->message_queue, msg, tmp) {
         if (mcfg->config->loglevel == BE_VERBOSE) {
             pthread_mutex_lock(&log_mutex);
-            LOG_INFO("Forwarding message to %s on %s:%d", mcfg->topic, mcfg->host, mcfg->port);
+            LOG_INFO("Forwarding message to %s on %s:%d", msg->topic, mcfg->host, mcfg->port);
             pthread_mutex_unlock(&log_mutex);
         }
 
-        rc = mosquitto_publish(mcfg->handle, NULL, mcfg->topic, msg->datalen, msg->data, mcfg->qos, false);
+        rc = mosquitto_publish(mcfg->handle, NULL, msg->topic, msg->datalen, msg->data, mcfg->qos, false);
         if (rc != MOSQ_ERR_SUCCESS && mcfg->config->loglevel != BE_QUIET) {
             pthread_mutex_lock(&log_mutex);
             // XXX: Error or warning ?
-            LOG_WARN("Can't publish message to %s on %s:%d: %s", mcfg->topic, mcfg->host, mcfg->port, mosquitto_strerror(rc));
+            LOG_WARN("Can't publish message to %s on %s:%d: %s", msg->topic, mcfg->host, mcfg->port, mosquitto_strerror(rc));
             pthread_mutex_unlock(&log_mutex);
         }
 
 #ifdef DEBUG
         pthread_mutex_lock(&log_mutex);
-        LOG_DEBUG("%s:%d/%s: %s - %s", mcfg->host, mcfg->port, msg->data, mcfg->topic, mosquitto_strerror(rc));
+        LOG_DEBUG("%s:%d/%s: %s - %s", mcfg->host, mcfg->port, msg->data, msg->topic, mosquitto_strerror(rc));
         pthread_mutex_unlock(&log_mutex);
 #endif
 
         switch (rc) {
             case MOSQ_ERR_SUCCESS:{
+                                      if (mcfg->config->loglevel == BE_VERBOSE) {
+                                          pthread_mutex_lock(&log_mutex);
+                                          LOG_INFO("Message sent to %s on %s:%d and removed from queue", msg->topic, mcfg->host, mcfg->port);
+                                          pthread_mutex_unlock(&log_mutex);
+                                      }
+
                                       DL_DELETE(mcfg->message_queue, msg);
                                       destroy_msg(msg);
                                       free(msg);
-
-                                      if (mcfg->config->loglevel == BE_VERBOSE) {
-                                          pthread_mutex_lock(&log_mutex);
-                                          LOG_INFO("Message sent to %s on %s:%d and removed from queue", mcfg->topic, mcfg->host, mcfg->port);
-                                          pthread_mutex_unlock(&log_mutex);
-                                      }
                                       break;
                                   }
 
@@ -75,7 +79,7 @@ void process_message_queue(struct mqtt_configuration *mcfg) {
             case MOSQ_ERR_PROTOCOL: {
                                         if (mcfg->config->loglevel != BE_QUIET) {
                                             pthread_mutex_lock(&log_mutex);
-                                            LOG_WARN("Requeueing message to %s on %s:%d", mcfg->topic, mcfg->host, mcfg->port);
+                                            LOG_WARN("Requeueing message to %s on %s:%d", msg->topic, mcfg->host, mcfg->port);
                                             pthread_mutex_unlock(&log_mutex);
                                         }
                                         break;
@@ -86,7 +90,7 @@ void process_message_queue(struct mqtt_configuration *mcfg) {
             case MOSQ_ERR_PAYLOAD_SIZE:
             case MOSQ_ERR_MALFORMED_UTF8: {
                                               pthread_mutex_lock(&log_mutex);
-                                              LOG_ERROR("Discarding invalid or malformed message to %s on %s:%d", mcfg->topic, mcfg->host, mcfg->port);
+                                              LOG_ERROR("Discarding invalid or malformed message to %s on %s:%d", msg->topic, mcfg->host, mcfg->port);
                                               pthread_mutex_unlock(&log_mutex);
                                               DL_DELETE(mcfg->message_queue, msg);
                                               destroy_msg(msg);

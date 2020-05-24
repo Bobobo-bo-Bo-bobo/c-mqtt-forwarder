@@ -1,3 +1,7 @@
+**_Note:_** Because I'm running my own servers for several years, main development is done at at https://git.ypbind.de/cgit/c-mqtt-forwarder/
+
+----
+
 # Preface
 `c-mqtt-forwarder` connects to a list of input MQTT brokers on a defined topic and forward all messages to all output brokers
 in a fan-in-fan-out fashion.

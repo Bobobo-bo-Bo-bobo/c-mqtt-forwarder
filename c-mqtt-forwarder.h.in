@@ -8,6 +8,7 @@
 #define DEFAULT_MQTT_PORT 1883
 #define DEFAULT_MQTT_TIMEOUT 60
 #define DEFAULT_MQTT_KEEPALIVE 15
+#define DEFAULT_MQTT_RECONNECT_DELAY 5
 
 #define DEBUG_BUILD @DEBUG_BUILD@
 #if DEBUG_BUILD == 1
@@ -84,6 +85,7 @@ struct mqtt_configuration {
     int timeout;
     int keepalive;
     short direction;
+    int reconnect_delay;
 
     struct mosquitto *handle;
 

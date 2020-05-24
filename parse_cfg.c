@@ -25,6 +25,7 @@ void set_mqtt_configuration_defaults(struct mqtt_configuration *mqttcfg) {
     mqttcfg->qos = 0;
     mqttcfg->timeout = DEFAULT_MQTT_TIMEOUT;
     mqttcfg->keepalive = DEFAULT_MQTT_KEEPALIVE;
+    mqttcfg->reconnect_delay = DEFAULT_MQTT_RECONNECT_DELAY;
     mqttcfg->insecure_ssl = false;
 }
 
@@ -172,6 +173,15 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
             return NULL;
         }
         mqttcfg->keepalive = c->valueint;
+    }
+
+    c = cJSON_GetObjectItemCaseSensitive(mcfg, "reconnect_delay");
+    if (cJSON_IsNumber(c)) {
+        if (c->valueint <= 0) {
+            LOG_ERROR("Invalid reconnect_delay value %d", c->valueint);
+            return NULL;
+        }
+        mqttcfg->reconnect_delay = c->valueint;
     }
     return mqttcfg;
 }
@@ -333,6 +343,7 @@ void dump_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     printf(">>> qos: %d\n", mcfg->qos);
     printf(">>> topic: %s\n", mcfg->topic);
     printf(">>> timeout: %d\n", mcfg->timeout);
+    printf(">>> reconnect_delay: %d\n", mcfg->reconnect_delay);
     printf(">>> keepalive: %d\n", mcfg->keepalive);
     printf(">>> direction: %d\n", mcfg->direction);
     printf(">>> message_queue: 0x%0x\n", mcfg->message_queue);

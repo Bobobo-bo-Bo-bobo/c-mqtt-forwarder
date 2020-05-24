@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <mosquitto.h>
 #include <utlist.h>
-
+#include <unistd.h>
 
 void mqtt_message_handler(struct mosquitto *mqtt, void *ptr, const struct mosquitto_message *msg) {
     struct mqtt_configuration *mcfg = (struct mqtt_configuration *) ptr;
@@ -183,34 +183,37 @@ void *mqtt_connect(void *ptr) {
         mosquitto_message_callback_set(mqtt, mqtt_message_handler);
     }
 
-    rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
-    if (rc != MOSQ_ERR_SUCCESS) {
-        pthread_mutex_lock(&log_mutex);
-        LOG_ERROR("Can't connect to %s:%d: %s\n", mcfg->host, mcfg->port, mosquitto_strerror(rc));
-        pthread_mutex_unlock(&log_mutex);
-        // TODO: Don't fail. try to reconnect instead
-        abort();
-    }
-
-    if (mcfg->direction == DIRECTION_IN) {
-        rc = mosquitto_loop_forever(mqtt, 1000 * mcfg->timeout, 1);
+    do {
+        rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
-            LOG_ERROR("MQTT loop_forever failed for %s:%d: %s\n", mcfg->host, mcfg->port, mosquitto_strerror(rc));
+            LOG_ERROR("Can't connect to %s:%d: %s ... retrying in %d seconds\n", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
             pthread_mutex_unlock(&log_mutex);
-            // TODO: Don't fail. try to reconnect instead
-            abort();
+            sleep(mcfg->reconnect_delay);
         }
+    } while (rc != MOSQ_ERR_SUCCESS);
+
+    if (mcfg->direction == DIRECTION_IN) {
+        do {
+            rc = mosquitto_loop_forever(mqtt, 1000 * mcfg->timeout, 1);
+            if (rc != MOSQ_ERR_SUCCESS) {
+                pthread_mutex_lock(&log_mutex);
+                LOG_ERROR("MQTT loop_forever failed for %s:%d: %s ... retrying in %d seconds\n", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
+                pthread_mutex_unlock(&log_mutex);
+                sleep(mcfg->reconnect_delay);
+            }
+        } while (rc != MOSQ_ERR_SUCCESS);
+
     } else {
-        rc = MOSQ_ERR_SUCCESS;
         while (rc == MOSQ_ERR_SUCCESS) {
             process_message_queue(mcfg);
 
             rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
-                LOG_ERROR("MQTT loop failed for %s:%d: %s\n", mcfg->host, mcfg->port, mosquitto_strerror(rc));
+                LOG_ERROR("MQTT loop failed for %s:%d: %s ... retrying in %d seconds", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
                 pthread_mutex_unlock(&log_mutex);
+                sleep(mcfg->reconnect_delay);
             }
         }
     }

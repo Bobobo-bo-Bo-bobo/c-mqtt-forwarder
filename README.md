@@ -27,11 +27,12 @@ Broker configuration is a dict of:
 | `insecure_ssl` | boolean | false | Don't verify server certificate | - |
 | `keepalive` | integer | 15 | Number of seconds after which the broker should send a PING | - |
 | `password` | string | - | Password to use for user/password authentication | - |
-| `port` | int | 1883 | Port of the MQTT broker | - |
-| `qos` | int | 0 | MQTT QoS for messages | - |
+| `port` | integer | 1883 | Port of the MQTT broker | - |
+| `qos` | integer | 0 | MQTT QoS for messages | - |
+| `reconnect_delay` | integer | 5 | If connection to broker fails or was disconnected, number of seconds to wait until reconnecting to broker |
 | `ssl_auth_public` | string | - | File containing the public key for authentication using SSL client certificates | - |
 | `ssl_auth_private` | string | - | File containing the public key for authentication using SSL client certificates | Private key must be unencrypted |
-| `timeout` | int | 60 | MQTT connection timeout in seconds | - |
+| `timeout` | integer | 60 | MQTT connection timeout in seconds | - |
 | `topic` | string | - | MQTT topic | **_mandatory_** |
 | `user` | string | - | User to use for user/password authentication | - |
 
@@ -49,7 +50,8 @@ Broker configuration is a dict of:
       "password": "It's so fluffy I'm gonna DIE!",
       "qos": 0,
       "timeout": 60,
-      "keepalive": 5
+      "keepalive": 5,
+      "reconnect_delay": 10
     },
     {
       "host": "mqtt-in-2.example.net",

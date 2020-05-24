@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.6)
 project(c-mqtt-forwarder)
 set(C_MQTT_FORWARDER_VERSION "1.0.0-20200525")
 
-# set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
 set(DEBUG_BUILD 0)
 string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if (BUILD_TYPE STREQUAL DEBUG)

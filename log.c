@@ -103,18 +103,18 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
 #ifdef LOG_USE_COLOR
     if (file) {
         fprintf(
-          stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
+          stderr, "%s %s%-6s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
           buf, level_colors[level], level_names[level], file, line);
     } else {
         fprintf(
-          stderr, "%s %s%-5s\x1b[0m",
+          stderr, "%s %s%-6s\x1b[0m",
           buf, level_colors[level], level_names[level]);
     }
 #else
     if (file) {
-        fprintf(stderr, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+        fprintf(stderr, "%s %-6s %s:%d: ", buf, level_names[level], file, line);
     } else {
-        fprintf(stderr, "%s %-5s", buf, level_names[level]);
+        fprintf(stderr, "%s %-6s", buf, level_names[level]);
     }
 #endif
 
@@ -133,9 +133,9 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
 //    buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", lt)] = '\0';
     buf[strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", lt)] = '\0';
     if (file) {
-        fprintf(L.fp, "%s %-5s %s:%d: ", buf, level_names[level], file, line);
+        fprintf(L.fp, "%s %-6s %s:%d: ", buf, level_names[level], file, line);
     } else {
-        fprintf(L.fp, "%s %-5s", buf, level_names[level]);
+        fprintf(L.fp, "%s %-6s", buf, level_names[level]);
     }
     va_start(args, fmt);
     vfprintf(L.fp, fmt, args);

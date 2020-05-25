@@ -110,11 +110,24 @@ void mqtt_subscribe_handler(struct mosquitto *mqtt, void *ptr, int mid, int qos_
 
 void mqtt_disconnect_handler(struct mosquitto *mqtt, void *ptr, int rc) {
     struct mqtt_configuration *mcfg = (struct mqtt_configuration *) ptr;
+    int _rc;
 
     if (rc != MOSQ_ERR_SUCCESS) {
         pthread_mutex_lock(&log_mutex);
-        LOG_ERROR("Unexpected disconnect from %s:%d: %s", mcfg->host, mcfg->port, mosquitto_strerror(rc));
+        LOG_ERROR("Unexpected disconnect from %s:%d: %s ... retrying in %d seconds", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
         pthread_mutex_unlock(&log_mutex);
+        sleep(mcfg->reconnect_delay);
+
+        // XXX: Is it wise to block disconnect handler?
+        do {
+            rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
+            if (rc != MOSQ_ERR_SUCCESS) {
+                pthread_mutex_lock(&log_mutex);
+                LOG_ERROR("Can't connect to %s:%d: %s ... retrying in %d seconds\n", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
+                pthread_mutex_unlock(&log_mutex);
+                sleep(mcfg->reconnect_delay);
+            }
+        } while (rc != MOSQ_ERR_SUCCESS);
     } else {
         pthread_mutex_lock(&log_mutex);
         LOG_INFO("Disconnecting from %s:%d", mcfg->host, mcfg->port);

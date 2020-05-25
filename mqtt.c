@@ -231,7 +231,7 @@ void *mqtt_connect(void *ptr) {
     if (mcfg->direction == DIRECTION_IN) {
         do {
             pthread_mutex_lock(&log_mutex);
-            LOG_INFO("Connecting to %s:%d", mcfg->host, mcfg->port);
+            LOG_INFO("Starting connection loop for %s:%d", mcfg->host, mcfg->port);
             pthread_mutex_unlock(&log_mutex);
 
             rc = mosquitto_loop_forever(mqtt, 1000 * mcfg->timeout, 1);
@@ -245,9 +245,12 @@ void *mqtt_connect(void *ptr) {
 
     } else {
         while (rc == MOSQ_ERR_SUCCESS) {
+
+#ifdef DEBUG
             pthread_mutex_lock(&log_mutex);
-            LOG_INFO("Connecting to %s:%d", mcfg->host, mcfg->port);
+            LOG_DEBUG("Triggering connection loop for %s:%d", mcfg->host, mcfg->port);
             pthread_mutex_unlock(&log_mutex);
+#endif
 
             rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
             if (rc != MOSQ_ERR_SUCCESS) {

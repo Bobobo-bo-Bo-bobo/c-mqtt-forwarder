@@ -131,7 +131,7 @@ void mqtt_disconnect_handler(struct mosquitto *mqtt, void *ptr, int rc) {
                 pthread_mutex_unlock(&log_mutex);
                 sleep(mcfg->reconnect_delay);
             }
-        } while (rc != MOSQ_ERR_SUCCESS);
+        } while (_rc != MOSQ_ERR_SUCCESS);
     } else {
         pthread_mutex_lock(&log_mutex);
         LOG_INFO("Disconnecting from %s:%d", mcfg->host, mcfg->port);

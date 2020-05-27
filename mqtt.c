@@ -110,11 +110,28 @@ void mqtt_subscribe_handler(struct mosquitto *mqtt, void *ptr, int mid, int qos_
 
 void mqtt_disconnect_handler(struct mosquitto *mqtt, void *ptr, int rc) {
     struct mqtt_configuration *mcfg = (struct mqtt_configuration *) ptr;
+    int _rc;
 
     if (rc != MOSQ_ERR_SUCCESS) {
         pthread_mutex_lock(&log_mutex);
-        LOG_ERROR("Unexpected disconnect from %s:%d: %s", mcfg->host, mcfg->port, mosquitto_strerror(rc));
+        LOG_ERROR("Unexpected disconnect from %s:%d: %s ... retrying in %d seconds", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
         pthread_mutex_unlock(&log_mutex);
+        sleep(mcfg->reconnect_delay);
+
+        // XXX: Is it wise to block disconnect handler?
+        do {
+            pthread_mutex_lock(&log_mutex);
+            LOG_INFO("Reconnecting to %s:%d", mcfg->host, mcfg->port);
+            pthread_mutex_unlock(&log_mutex);
+
+            _rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
+            if (_rc != MOSQ_ERR_SUCCESS) {
+                pthread_mutex_lock(&log_mutex);
+                LOG_ERROR("Can't connect to %s:%d: %s ... retrying in %d seconds\n", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
+                pthread_mutex_unlock(&log_mutex);
+                sleep(mcfg->reconnect_delay);
+            }
+        } while (_rc != MOSQ_ERR_SUCCESS);
     } else {
         pthread_mutex_lock(&log_mutex);
         LOG_INFO("Disconnecting from %s:%d", mcfg->host, mcfg->port);
@@ -198,6 +215,10 @@ void *mqtt_connect(void *ptr) {
     }
 
     do {
+        pthread_mutex_lock(&log_mutex);
+        LOG_INFO("Connecting to %s:%d", mcfg->host, mcfg->port);
+        pthread_mutex_unlock(&log_mutex);
+
         rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
@@ -209,6 +230,10 @@ void *mqtt_connect(void *ptr) {
 
     if (mcfg->direction == DIRECTION_IN) {
         do {
+            pthread_mutex_lock(&log_mutex);
+            LOG_INFO("Starting connection loop for %s:%d", mcfg->host, mcfg->port);
+            pthread_mutex_unlock(&log_mutex);
+
             rc = mosquitto_loop_forever(mqtt, 1000 * mcfg->timeout, 1);
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
@@ -220,7 +245,12 @@ void *mqtt_connect(void *ptr) {
 
     } else {
         while (rc == MOSQ_ERR_SUCCESS) {
-            process_message_queue(mcfg);
+
+#ifdef DEBUG
+            pthread_mutex_lock(&log_mutex);
+            LOG_DEBUG("Triggering connection loop for %s:%d", mcfg->host, mcfg->port);
+            pthread_mutex_unlock(&log_mutex);
+#endif
 
             rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
             if (rc != MOSQ_ERR_SUCCESS) {
@@ -229,6 +259,8 @@ void *mqtt_connect(void *ptr) {
                 pthread_mutex_unlock(&log_mutex);
                 sleep(mcfg->reconnect_delay);
             }
+
+            process_message_queue(mcfg);
         }
     }
 };

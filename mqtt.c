@@ -242,9 +242,8 @@ void *mqtt_connect(void *ptr) {
                 sleep(mcfg->reconnect_delay);
             }
         } while (rc != MOSQ_ERR_SUCCESS);
-
     } else {
-        while (rc == MOSQ_ERR_SUCCESS) {
+        for (;;) {
 
 #ifdef DEBUG
             pthread_mutex_lock(&log_mutex);
@@ -253,14 +252,21 @@ void *mqtt_connect(void *ptr) {
 #endif
 
             rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
+
+#ifdef DEBUG
+            pthread_mutex_lock(&log_mutex);
+            LOG_DEBUG("mosquitto_loop for %s:%d returned %s", mcfg->host, mcfg->port, strerror(rc));
+            pthread_mutex_unlock(&log_mutex);
+#endif
+
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
                 LOG_ERROR("MQTT loop failed for %s:%d: %s ... retrying in %d seconds", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
                 pthread_mutex_unlock(&log_mutex);
                 sleep(mcfg->reconnect_delay);
+            } else {
+                process_message_queue(mcfg);
             }
-
-            process_message_queue(mcfg);
         }
     }
 };

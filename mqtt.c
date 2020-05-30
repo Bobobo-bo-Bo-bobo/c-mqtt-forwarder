@@ -264,6 +264,9 @@ void *mqtt_connect(void *ptr) {
                 LOG_ERROR("MQTT loop failed for %s:%d: %s ... retrying in %d seconds", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
                 pthread_mutex_unlock(&log_mutex);
                 sleep(mcfg->reconnect_delay);
+                // mosquitto_loop_forever handles reconnects but mosquitto_loop does not
+                // Note: We don't care about the return code here. mosquitto_loop will fail if reconnect failed
+                mosquitto_reconnect(mqtt);
             } else {
                 process_message_queue(mcfg);
             }

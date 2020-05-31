@@ -54,11 +54,15 @@ add_library(util util.c)
 add_library(log log/log.c)
 add_definitions("-DLOG_USE_COLOR")
 
+# yuarel.c: https://github.com/jacketizer/libyuarel
+add_library(yuarel yuarel/yuarel.c)
+
 configure_file("${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h.in" "${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h")
 
 add_executable(c-mqtt-forwarder main.c)
 
 target_link_libraries(c-mqtt-forwarder log)
+target_link_libraries(c-mqtt-forwarder yuarel)
 target_link_libraries(c-mqtt-forwarder mqtt)
 # target_link_libraries(c-mqtt-forwarder signal_handler)
 target_link_libraries(c-mqtt-forwarder usage)

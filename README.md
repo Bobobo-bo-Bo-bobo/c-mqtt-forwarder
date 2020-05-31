@@ -22,8 +22,11 @@ Broker configuration is a dict of:
 
 | *Key* | *Type* | *Default* | *Description* | *Comment* |
 |:------|:-------|:----------|:--------------|:----------|
+| `ca_directory` | string | `/etc/ssl/certs` | Path to CA directory containing the public keys of the CA for the server certificate | only used if TLS is used (`url` scheme is `mqtts`) |
 | `ca_file` | string | - | Path to CA file containing the public key of the CA for the server certificate | Must be set to enable TLS |
-| `host` | string | - | Name or address of the MQTT broker | **_mandatory_** |
+| `url` | string | - | URL for MQTT connection | **_mandatory_** |
+|       |        |   |                         | Supported schemes are `mqtts` and `mqtt` |
+|       |        |   |                         | e.g.: `mqtts://mqtt.fqdn:1884/top/ic/+/incl/#`|
 | `insecure_ssl` | boolean | false | Don't verify server certificate | - |
 | `keepalive` | integer | 15 | Number of seconds after which the broker should send a PING | - |
 | `password` | string | - | Password to use for user/password authentication | - |

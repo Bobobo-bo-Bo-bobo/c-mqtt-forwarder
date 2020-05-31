@@ -27,6 +27,7 @@
 #define DEFAULT_MQTT_TIMEOUT 60
 #define DEFAULT_MQTT_KEEPALIVE 15
 #define DEFAULT_MQTT_RECONNECT_DELAY 5
+#define DEFAULT_CA_DIR "/etc/ssl/certs"
 
 #define DEBUG_BUILD @DEBUG_BUILD@
 #if DEBUG_BUILD == 1
@@ -97,6 +98,7 @@ struct mqtt_configuration {
     char *ssl_auth_public;
     char *ssl_auth_private;
     char *ca_file;
+    char *ca_dir;
     bool insecure_ssl;
     short qos;
     char *topic;
@@ -104,6 +106,7 @@ struct mqtt_configuration {
     int keepalive;
     short direction;
     int reconnect_delay;
+    bool use_tls;
 
     struct mosquitto *handle;
 

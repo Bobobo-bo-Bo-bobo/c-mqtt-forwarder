@@ -27,6 +27,7 @@ void destroy_configuration(struct configuration *);
 char *read_configuration_file(const char *);
 struct configuration *parse_config_file(const char *);
 bool validate_configuration(const struct configuration *);
+void set_mqtt_ca(struct mqtt_configuration *);
 
 #ifdef DEBUG
 void dump_mqtt_configuration(const struct mqtt_configuration *);

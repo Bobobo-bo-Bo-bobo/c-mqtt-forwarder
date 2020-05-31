@@ -173,7 +173,7 @@ void *mqtt_connect(void *ptr) {
 
     mosquitto_threaded_set(mqtt, true);
 
-    if (mcfg->ca_file != NULL) {
+    if (mcfg->use_tls) {
         if (mcfg->insecure_ssl) {
             rc = mosquitto_tls_opts_set(mqtt, MQTT_SSL_VERIFY_NONE, NULL, NULL);
         } else {
@@ -191,8 +191,8 @@ void *mqtt_connect(void *ptr) {
     // Authenticate using user/password or client certificate
     // XXX: There is a third option, "pre-shared key over TLS" - mosquitto_tls_psk_set
     if (mcfg->user != NULL) {
-        if (mcfg->ca_file != NULL) {
-            rc = mosquitto_tls_set(mqtt, mcfg->ca_file, NULL, NULL, NULL, NULL);
+        if (mcfg->use_tls) {
+            rc = mosquitto_tls_set(mqtt, mcfg->ca_file, mcfg->ca_dir, NULL, NULL, NULL);
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
                 LOG_ERROR("Can't initialise MQTT data structure for TLS: %s", mosquitto_strerror(rc));
@@ -209,7 +209,7 @@ void *mqtt_connect(void *ptr) {
             abort();
         }
     } else {
-        rc = mosquitto_tls_set(mqtt, mcfg->ca_file, NULL, mcfg->ssl_auth_public, mcfg->ssl_auth_private, NULL);
+        rc = mosquitto_tls_set(mqtt, mcfg->ca_file, mcfg->ca_dir, mcfg->ssl_auth_public, mcfg->ssl_auth_private, NULL);
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
             LOG_ERROR("Can't initialise MQTT data structure: %s", mosquitto_strerror(rc));

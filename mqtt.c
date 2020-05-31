@@ -1,5 +1,23 @@
+/*
+ * This file is part of c-mqtt-forwarder
+ *
+ * Copyright (C) 2020 by Andreas Maus <maus@ypbind.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "c-mqtt-forwarder.h"
-#include "log.h"
+#include "log/log.h"
 #include "mqtt.h"
 #include "util.h"
 #include "process_msgs.h"
@@ -155,7 +173,7 @@ void *mqtt_connect(void *ptr) {
 
     mosquitto_threaded_set(mqtt, true);
 
-    if (mcfg->ca_file != NULL) {
+    if (mcfg->use_tls) {
         if (mcfg->insecure_ssl) {
             rc = mosquitto_tls_opts_set(mqtt, MQTT_SSL_VERIFY_NONE, NULL, NULL);
         } else {
@@ -173,8 +191,8 @@ void *mqtt_connect(void *ptr) {
     // Authenticate using user/password or client certificate
     // XXX: There is a third option, "pre-shared key over TLS" - mosquitto_tls_psk_set
     if (mcfg->user != NULL) {
-        if (mcfg->ca_file != NULL) {
-            rc = mosquitto_tls_set(mqtt, mcfg->ca_file, NULL, NULL, NULL, NULL);
+        if (mcfg->use_tls) {
+            rc = mosquitto_tls_set(mqtt, mcfg->ca_file, mcfg->ca_dir, NULL, NULL, NULL);
             if (rc != MOSQ_ERR_SUCCESS) {
                 pthread_mutex_lock(&log_mutex);
                 LOG_ERROR("Can't initialise MQTT data structure for TLS: %s", mosquitto_strerror(rc));
@@ -191,7 +209,7 @@ void *mqtt_connect(void *ptr) {
             abort();
         }
     } else {
-        rc = mosquitto_tls_set(mqtt, mcfg->ca_file, NULL, mcfg->ssl_auth_public, mcfg->ssl_auth_private, NULL);
+        rc = mosquitto_tls_set(mqtt, mcfg->ca_file, mcfg->ca_dir, mcfg->ssl_auth_public, mcfg->ssl_auth_private, NULL);
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
             LOG_ERROR("Can't initialise MQTT data structure: %s", mosquitto_strerror(rc));

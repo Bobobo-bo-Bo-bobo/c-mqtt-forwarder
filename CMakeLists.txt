@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 project(c-mqtt-forwarder)
-set(C_MQTT_FORWARDER_VERSION "1.0.0-20200529")
+set(C_MQTT_FORWARDER_VERSION "1.0.0-20200531")
 
 set(CMAKE_BUILD_TYPE Debug)
 set(DEBUG_BUILD 0)
@@ -51,8 +51,11 @@ add_library(util util.c)
 # add_library(signal_handler signal_handler.c)
 
 # log.c: https://github.com/rxi/log.c
-add_library(log log.c)
+add_library(log log/log.c)
 add_definitions("-DLOG_USE_COLOR")
+
+# yuarel.c: https://github.com/jacketizer/libyuarel
+add_library(yuarel yuarel/yuarel.c)
 
 configure_file("${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h.in" "${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h")
 
@@ -65,6 +68,7 @@ target_link_libraries(c-mqtt-forwarder usage)
 target_link_libraries(c-mqtt-forwarder util)
 target_link_libraries(c-mqtt-forwarder parse_cfg)
 target_link_libraries(c-mqtt-forwarder process_msgs)
+target_link_libraries(c-mqtt-forwarder yuarel)
 target_link_libraries(c-mqtt-forwarder "-lmosquitto")
 target_link_libraries(c-mqtt-forwarder "-lm")
 target_link_libraries(c-mqtt-forwarder ${LIBUUID_LIBRARIES})

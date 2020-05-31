@@ -1,3 +1,21 @@
+/*
+ * This file is part of c-mqtt-forwarder
+ *
+ * Copyright (C) 2020 by Andreas Maus <maus@ypbind.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef __C_MQTT_FORWARDER_CONFIG_H__
 #define __C_MQTT_FORWARDER_CONFIG_H__
 
@@ -9,6 +27,7 @@
 #define DEFAULT_MQTT_TIMEOUT 60
 #define DEFAULT_MQTT_KEEPALIVE 15
 #define DEFAULT_MQTT_RECONNECT_DELAY 5
+#define DEFAULT_CA_DIR "/etc/ssl/certs"
 
 #define DEBUG_BUILD @DEBUG_BUILD@
 #if DEBUG_BUILD == 1
@@ -42,7 +61,7 @@ typedef char bool;
 #include <uthash.h>
 #include <pthread.h>
 #include <time.h>
-#include "log.h"
+#include "log/log.h"
 
 #ifdef DEBUG
 
@@ -79,6 +98,7 @@ struct mqtt_configuration {
     char *ssl_auth_public;
     char *ssl_auth_private;
     char *ca_file;
+    char *ca_dir;
     bool insecure_ssl;
     short qos;
     char *topic;
@@ -86,6 +106,7 @@ struct mqtt_configuration {
     int keepalive;
     short direction;
     int reconnect_delay;
+    bool use_tls;
 
     struct mosquitto *handle;
 

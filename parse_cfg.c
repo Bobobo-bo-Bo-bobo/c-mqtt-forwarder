@@ -1,6 +1,25 @@
+/*
+ * This file is part of c-mqtt-forwarder
+ *
+ * Copyright (C) 2020 by Andreas Maus <maus@ypbind.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "c-mqtt-forwarder.h"
 #include "util.h"
 #include "parse_cfg.h"
+#include "yuarel/yuarel.h"
 
 #include <cjson/cJSON.h>
 #include <assert.h>
@@ -78,6 +97,10 @@ char *read_configuration_file(const char *cfg_file) {
 struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     struct mqtt_configuration *mqttcfg;
     const cJSON *c;
+    struct yuarel url;
+    char *cfg_url;
+    bool add_frag = false;
+    char *tmpptr;
 
     mqttcfg = calloc(1, sizeof(struct mqtt_configuration));
     if (mqttcfg == NULL) {
@@ -86,25 +109,91 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     }
     set_mqtt_configuration_defaults(mqttcfg);
 
-    c = cJSON_GetObjectItemCaseSensitive(mcfg, "host");
+    c = cJSON_GetObjectItemCaseSensitive(mcfg, "url");
     if (cJSON_IsString(c) && (c->valuestring != NULL)) {
-        mqttcfg->host = strdup(c->valuestring);
-        assert(mqttcfg->host != NULL);
-    }
-
-    c = cJSON_GetObjectItemCaseSensitive(mcfg, "port");
-    if (cJSON_IsNumber(c)) {
-        if ((c->valueint <= 0) || (c->valueint > 65535)) {
-            LOG_ERROR("Invalid port number %d", c->valueint);
+        cfg_url = strdup(c->valuestring);
+        assert(cfg_url != NULL);
+        if (yuarel_parse(&url, cfg_url) == -1) {
+            LOG_ERROR("Can't parse URL %s\n", c->valuestring);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
+            free(cfg_url);
             return NULL;
         }
-        mqttcfg->port = c->valueint;
-    }
+        mqttcfg->host = strdup(url.host);
+        assert(mqttcfg->host != NULL);
 
-    c = cJSON_GetObjectItemCaseSensitive(mcfg, "topic");
-    if (cJSON_IsString(c) && (c->valuestring != NULL)) {
-        mqttcfg->topic = strdup(c->valuestring);
+        if (strcmp(url.scheme, "mqtts") == 0) {
+            mqttcfg->use_tls = true;
+        } else if (strcmp(url.scheme, "mqtt") == 0) {
+            mqttcfg->use_tls = false;
+        } else {
+            LOG_ERROR("Unsupported scheme %s in URL %s\n", url.scheme, c->valuestring);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
+            free(cfg_url);
+            return NULL;
+        }
+
+        if (url.port != 0) {
+            mqttcfg->port = url.port;
+        }
+
+        if (url.path == NULL) {
+            LOG_ERROR("Unsupported scheme %s in URL %s\n", url.scheme, c->valuestring);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
+            free(cfg_url);
+            return NULL;
+        }
+        mqttcfg->topic = strdup(url.path);
         assert(mqttcfg->topic != NULL);
+
+        if (url.query != NULL) {
+            LOG_WARN("Queries in URL scheme %s are not supported and will be ignored", c->valuestring);
+        }
+
+        // Special case for MQTT: # can be part of the topic (but only at the end)
+        if (url.fragment != NULL) {
+            if (strlen(url.fragment) == 0) {
+                add_frag = true;
+            } else {
+                LOG_WARN("Fragments in URL scheme %s are not supported and will %s be ignored", c->valuestring, url.fragment);
+                add_frag = true;
+            }
+        }
+
+        free(cfg_url);
+
+        // if a URL fragment (in MQTT a wildcard) was found, append it
+        if (add_frag) {
+            tmpptr = NULL;
+
+            // Special case: Subscribe to all topics ("#")
+            if (strlen(mqttcfg->topic) == 0) {
+                tmpptr = calloc(2, 1); // topic + "#" + 0x0
+            } else if (mqttcfg->topic[strlen(mqttcfg->topic)] == '/') {
+                tmpptr = calloc(strlen(mqttcfg->topic) + 2, 1); // topic + "#" + 0x0
+            } else {
+                tmpptr = calloc(strlen(mqttcfg->topic) + 3, 1); // topic + "/#" + 0x0
+            }
+            assert(tmpptr != NULL);
+
+            strncpy(tmpptr, mqttcfg->topic, strlen(mqttcfg->topic));
+
+            // Special case: Subscribe to all topics ("#")
+            if (strlen(mqttcfg->topic) == 0) {
+                tmpptr[0] = '#';
+            } else if (mqttcfg->topic[strlen(mqttcfg->topic)] == '/') {
+                tmpptr[strlen(mqttcfg->topic)+1] = '#';
+            } else {
+                tmpptr[strlen(mqttcfg->topic)+1] = '/';
+                tmpptr[strlen(mqttcfg->topic)+2] = '#';
+            }
+
+            free(mqttcfg->topic);
+            mqttcfg->topic = tmpptr;
+        }
     }
 
     c = cJSON_GetObjectItemCaseSensitive(mcfg, "insecure_ssl");
@@ -122,6 +211,12 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     if ((cJSON_IsString(c)) && (c->valuestring != NULL)) {
         mqttcfg->ca_file = strdup(c->valuestring);
         assert(mqttcfg->ca_file != NULL);
+    }
+
+    c = cJSON_GetObjectItemCaseSensitive(mcfg, "ca_directory");
+    if ((cJSON_IsString(c)) && (c->valuestring != NULL)) {
+        mqttcfg->ca_dir = strdup(c->valuestring);
+        assert(mqttcfg->ca_dir != NULL);
     }
 
     c = cJSON_GetObjectItemCaseSensitive(mcfg, "user");
@@ -152,6 +247,8 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     if (cJSON_IsNumber(c)) {
         if ((c->valueint < 0) && (c->valueint > 2)) {
             LOG_ERROR("Invalid QoS value %d\n", c->valueint);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
             return NULL;
         }
         mqttcfg->qos = c->valueint;
@@ -161,6 +258,8 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     if (cJSON_IsNumber(c)) {
         if (c->valueint <= 0) {
             LOG_ERROR("Invalid timeout %d", c->valueint);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
             return NULL;
         }
         mqttcfg->timeout = c->valueint;
@@ -170,6 +269,8 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     if (cJSON_IsNumber(c)) {
         if (c->valueint <= 0) {
             LOG_ERROR("Invalid keepalive %d", c->valueint);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
             return NULL;
         }
         mqttcfg->keepalive = c->valueint;
@@ -179,10 +280,15 @@ struct mqtt_configuration *parse_mqtt_configuration(const cJSON *mcfg) {
     if (cJSON_IsNumber(c)) {
         if (c->valueint <= 0) {
             LOG_ERROR("Invalid reconnect_delay value %d", c->valueint);
+            destroy_mqtt_configuration(mqttcfg);
+            free(mqttcfg);
             return NULL;
         }
         mqttcfg->reconnect_delay = c->valueint;
     }
+
+    // set default CA directory if neither CA file nor CA directory are set but TLS was requested
+    set_mqtt_ca(mqttcfg);
     return mqttcfg;
 }
 
@@ -210,6 +316,9 @@ void destroy_mqtt_configuration(struct mqtt_configuration *mqttcfg) {
     }
     if (mqttcfg->ca_file) {
         free(mqttcfg->ca_file);
+    }
+    if (mqttcfg->ca_dir) {
+        free(mqttcfg->ca_dir);
     }
     if (mqttcfg->topic) {
         free(mqttcfg->topic);
@@ -339,6 +448,7 @@ void dump_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     printf(">>> ssl_auth_public: %s\n", mcfg->ssl_auth_public);
     printf(">>> ssl_auth_private: %s\n", mcfg->ssl_auth_private);
     printf(">>> ca_file: %s\n", mcfg->ca_file);
+    printf(">>> ca_dir: %s\n", mcfg->ca_dir);
     printf(">>> insecure_ssl: %d\n", mcfg->insecure_ssl);
     printf(">>> qos: %d\n", mcfg->qos);
     printf(">>> topic: %s\n", mcfg->topic);
@@ -367,6 +477,18 @@ void dump_configuration(const struct configuration *cfg) {
     }
 }
 #endif
+
+void set_mqtt_ca(struct mqtt_configuration *mcfg) {
+    if (mcfg->use_tls) {
+        if ((mcfg->ca_file == NULL) && (mcfg->ca_dir == NULL)) {
+            mcfg->ca_dir = strdup(DEFAULT_CA_DIR);
+            assert(mcfg->ca_dir != NULL);
+        } else if ((strlen(mcfg->ca_file) == 0) && (strlen(mcfg->ca_dir) == 0)) {
+            mcfg->ca_dir = strdup(DEFAULT_CA_DIR);
+            assert(mcfg->ca_dir != NULL);
+        }
+    }
+}
 
 bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
     if ((mcfg->host == NULL) || (strlen(mcfg->host) == 0)) {
@@ -411,7 +533,6 @@ bool validate_mqtt_configuration(const struct mqtt_configuration *mcfg) {
         LOG_ERROR("No user found for user/password authentication");
         return false;
     }
-
 
     return true;
 }

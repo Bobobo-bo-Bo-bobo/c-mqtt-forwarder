@@ -1,5 +1,5 @@
 #include "c-mqtt-forwarder.h"
-#include "log.h"
+#include "log/log.h"
 #include "mqtt.h"
 #include "util.h"
 #include "process_msgs.h"

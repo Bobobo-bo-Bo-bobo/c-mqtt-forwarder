@@ -51,7 +51,7 @@ add_library(util util.c)
 # add_library(signal_handler signal_handler.c)
 
 # log.c: https://github.com/rxi/log.c
-add_library(log log.c)
+add_library(log log/log.c)
 add_definitions("-DLOG_USE_COLOR")
 
 configure_file("${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h.in" "${PROJECT_SOURCE_DIR}/c-mqtt-forwarder.h")

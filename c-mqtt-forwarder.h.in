@@ -42,7 +42,7 @@ typedef char bool;
 #include <uthash.h>
 #include <pthread.h>
 #include <time.h>
-#include "log.h"
+#include "log/log.h"
 
 #ifdef DEBUG
 

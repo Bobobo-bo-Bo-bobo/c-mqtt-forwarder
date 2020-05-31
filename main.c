@@ -1,6 +1,6 @@
 #include "c-mqtt-forwarder.h"
 #include "usage.h"
-#include "log.h"
+#include "log/log.h"
 #include "parse_cfg.h"
 #include "mqtt.h"
 

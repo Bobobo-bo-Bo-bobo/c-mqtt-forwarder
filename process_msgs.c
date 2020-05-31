@@ -1,5 +1,5 @@
 #include "c-mqtt-forwarder.h"
-#include "log.h"
+#include "log/log.h"
 
 #include <pthread.h>
 #include <mosquitto.h>

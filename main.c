@@ -18,9 +18,11 @@
  */
 #include "c-mqtt-forwarder.h"
 #include "usage.h"
-#include "log/log.h"
 #include "parse_cfg.h"
 #include "mqtt.h"
+#include "signal_handler.h"
+
+#include "log/log.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -30,6 +32,9 @@
 #include <stdlib.h>
 #include <mosquitto.h>
 #include <utlist.h>
+#include <signal.h>
+#include <setjmp.h>
+#include <unistd.h>
 
 const char *short_options = "c:qvh";
 static struct option long_options[] = {
@@ -48,9 +53,16 @@ int main(int argc, char **argv) {
     int optind = 0;
     short loglvl = 0;
     pthread_t *threads;
+    pthread_t sigthrd;
     int i;
     int rc;
     struct mqtt_configuration *m;
+	sigset_t sset;
+	int sig;
+#ifdef HAVE_SIGACTION
+    struct sigaction action;
+    sigset_t mask;
+#endif
 
     while ((gorc = getopt_long(argc, argv, short_options, long_options, &optind)) != -1) {
         switch (gorc) {
@@ -154,6 +166,40 @@ int main(int argc, char **argv) {
             goto done;
         }
         i++;
+    }
+
+    block_signal();
+    sigemptyset(&sset);
+    sigaddset(&sset, SIGTERM);
+    sigaddset(&sset, SIGINT);
+
+    // block and wait for signal instead of calling pthread_join to wait for threads to exit
+    sigwait(&sset, &sig);
+
+#ifdef DEBUG
+    pthread_mutex_lock(&log_mutex);
+    LOG_DEBUG("Received signal %d, terminating MQTT threads", sig);
+    pthread_mutex_unlock(&log_mutex);
+#endif
+
+    pthread_mutex_lock(&fan_mutex);
+    // terminate MQTT threads
+    DL_FOREACH(cfg->fan_out, m) {
+        if (m->handle != NULL) {
+            mosquitto_disconnect(m->handle);
+            mosquitto_loop_stop(m->handle, true);
+        }
+    }
+    DL_FOREACH(cfg->fan_in, m) {
+        if (m->handle != NULL) {
+            mosquitto_disconnect(m->handle);
+            mosquitto_loop_stop(m->handle, true);
+        }
+    }
+    pthread_mutex_unlock(&fan_mutex);
+
+    for (i = 0; i< cfg->count_in + cfg->count_out; i++) {
+        pthread_cancel(threads[i]);
     }
 
     for (i = 0; i< cfg->count_in + cfg->count_out; i++) {

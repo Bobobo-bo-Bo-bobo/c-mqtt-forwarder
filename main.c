@@ -128,6 +128,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // Block signals
+    block_signal();
+
     threads = (pthread_t *) calloc(cfg->count_in + cfg->count_out, sizeof(pthread_t));
     assert(threads != NULL);
 
@@ -168,10 +171,9 @@ int main(int argc, char **argv) {
         i++;
     }
 
-    block_signal();
+    // Allow signals and wait for SIGTERM
     sigemptyset(&sset);
     sigaddset(&sset, SIGTERM);
-    sigaddset(&sset, SIGINT);
 
     // block and wait for signal instead of calling pthread_join to wait for threads to exit
     sigwait(&sset, &sig);

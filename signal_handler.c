@@ -7,7 +7,6 @@ void block_signal(void) {
     sigset_t smask;
     sigemptyset(&smask);
     sigaddset(&smask, SIGTERM);
-    sigaddset(&smask, SIGINT);
     pthread_sigmask(SIG_BLOCK, &smask, NULL);
 }
 

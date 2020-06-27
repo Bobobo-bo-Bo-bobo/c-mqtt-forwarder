@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 project(c-mqtt-forwarder)
-set(C_MQTT_FORWARDER_VERSION "1.0.0-20200531")
+set(C_MQTT_FORWARDER_VERSION "1.0.0")
 
 set(CMAKE_BUILD_TYPE Debug)
 set(DEBUG_BUILD 0)
@@ -15,7 +15,7 @@ include (FindPkgConfig)
 
 check_function_exists(memset HAVE_MEMSET)
 check_function_exists(calloc HAVE_CALLOC)
-#check_function_exists(sigaction HAVE_SIGACTION)
+check_function_exists(sigaction HAVE_SIGACTION)
 check_include_file(stdbool.h HAVE_STDBOOL_H)
 
 # check for libmosquitto
@@ -48,7 +48,7 @@ add_library(parse_cfg parse_cfg.c)
 add_library(mqtt mqtt.c)
 add_library(process_msgs process_msgs.c)
 add_library(util util.c)
-# add_library(signal_handler signal_handler.c)
+add_library(signal_handler signal_handler.c)
 
 # log.c: https://github.com/rxi/log.c
 add_library(log log/log.c)
@@ -63,11 +63,12 @@ add_executable(c-mqtt-forwarder main.c)
 
 target_link_libraries(c-mqtt-forwarder log)
 target_link_libraries(c-mqtt-forwarder mqtt)
-# target_link_libraries(c-mqtt-forwarder signal_handler)
+target_link_libraries(c-mqtt-forwarder signal_handler)
 target_link_libraries(c-mqtt-forwarder usage)
 target_link_libraries(c-mqtt-forwarder util)
 target_link_libraries(c-mqtt-forwarder parse_cfg)
 target_link_libraries(c-mqtt-forwarder process_msgs)
+target_link_libraries(c-mqtt-forwarder signal_handler)
 target_link_libraries(c-mqtt-forwarder yuarel)
 target_link_libraries(c-mqtt-forwarder "-lmosquitto")
 target_link_libraries(c-mqtt-forwarder "-lm")

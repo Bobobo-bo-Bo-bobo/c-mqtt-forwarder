@@ -21,6 +21,7 @@
 #include "mqtt.h"
 #include "util.h"
 #include "process_msgs.h"
+#include "signal_handler.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -28,6 +29,7 @@
 #include <mosquitto.h>
 #include <utlist.h>
 #include <unistd.h>
+#include <pthread.h>
 
 void mqtt_message_handler(struct mosquitto *mqtt, void *ptr, const struct mosquitto_message *msg) {
     struct mqtt_configuration *mcfg = (struct mqtt_configuration *) ptr;
@@ -154,6 +156,8 @@ void mqtt_disconnect_handler(struct mosquitto *mqtt, void *ptr, int rc) {
         pthread_mutex_lock(&log_mutex);
         LOG_INFO("Disconnecting from %s:%d", mcfg->host, mcfg->port);
         pthread_mutex_unlock(&log_mutex);
+
+        mosquitto_loop_stop(mqtt, true);
     }
 };
 
@@ -162,6 +166,20 @@ void *mqtt_connect(void *ptr) {
     struct mosquitto *mqtt;
     char *mqtt_client_id;
     int rc;
+
+    block_signal();
+
+    rc = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    if (rc != 0) {
+        LOG_FATAL("Unable to set cancellatio state for thread");
+        abort();
+    }
+
+    rc = pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED, NULL);
+    if (rc != 0) {
+        LOG_FATAL("Unable to set cancellatio state for thread");
+        abort();
+    }
 
     mqtt_client_id = uuidgen();
 
@@ -238,6 +256,13 @@ void *mqtt_connect(void *ptr) {
         pthread_mutex_unlock(&log_mutex);
 
         rc = mosquitto_connect(mqtt, mcfg->host, mcfg->port, mcfg->keepalive);
+
+        if (errno == EINTR) {
+            mosquitto_disconnect(mqtt);
+            mosquitto_loop_stop(mqtt, true);
+            return NULL;
+        }
+
         if (rc != MOSQ_ERR_SUCCESS) {
             pthread_mutex_lock(&log_mutex);
             LOG_ERROR("Can't connect to %s:%d: %s ... retrying in %d seconds\n", mcfg->host, mcfg->port, mosquitto_strerror(rc), mcfg->reconnect_delay);
@@ -270,6 +295,12 @@ void *mqtt_connect(void *ptr) {
 #endif
 
             rc = mosquitto_loop(mqtt, 1000 * mcfg->timeout, 1);
+
+            if (errno == EINTR) {
+                mosquitto_disconnect(mqtt);
+                mosquitto_loop_stop(mqtt, true);
+                return NULL;
+            }
 
 #ifdef DEBUG
             pthread_mutex_lock(&log_mutex);

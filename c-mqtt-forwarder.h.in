@@ -49,6 +49,8 @@
 #define MQTT_SSL_VERIFY_NONE 0
 #define MQTT_SSL_VERIFY_PEER 1
 
+#define SIGNAL_HANDLER_EXIT 0xaa
+
 #ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
 #else /* HAVE_STDBOOL_H */
@@ -61,6 +63,7 @@ typedef char bool;
 #include <uthash.h>
 #include <pthread.h>
 #include <time.h>
+#include <setjmp.h>
 #include "log/log.h"
 
 #ifdef DEBUG
@@ -135,5 +138,7 @@ static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t msg_mutex = PTHREAD_MUTEX_INITIALIZER;
 // mutex for processing fan_in/fan_out list
 static pthread_mutex_t fan_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static jmp_buf state;
 
 #endif

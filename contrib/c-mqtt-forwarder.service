@@ -1,0 +1,15 @@
+[Unit]
+Description=Receive and forward MQTT messages in a fan-in-fan-out fashion
+After=network.target
+
+[Service]
+User=mqtt-forwarder
+Group=mqtt-forwarder
+EnvironmentFile=-/etc/default/c-mqtt-forwarder
+ExecStart=/usr/bin/c-mqtt-forwarder $OPTIONS
+KillMode=control-group
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
